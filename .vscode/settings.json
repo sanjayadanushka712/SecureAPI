@@ -1,0 +1,17 @@
+{
+  "cSpell.words": [
+    "anyio",
+    "dotenv",
+    "fastapi",
+    "httptools",
+    "idna",
+    "pycache",
+    "pydantic",
+    "pytest",
+    "starlette",
+    "uvicorn",
+    "uvloop",
+    "venv",
+    "watchfiles"
+  ]
+}
