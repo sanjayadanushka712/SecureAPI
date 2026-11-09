@@ -1,6 +1,7 @@
 {
   "cSpell.words": [
     "anyio",
+    "autouse",
     "dotenv",
     "fastapi",
     "httptools",
