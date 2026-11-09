@@ -9,6 +9,7 @@
     "pydantic",
     "pytest",
     "starlette",
+    "sucess",
     "uvicorn",
     "uvloop",
     "venv",
