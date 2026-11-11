@@ -18,9 +18,7 @@ def _free_port() -> int:
 @pytest.fixture(scope="module")
 def live_server_url():
     port = _free_port()
-    config = uvicorn.Config(
-        app, host="127.0.0.1", port=port, log_level="error"
-    )
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error")
     server = uvicorn.Server(config)
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()

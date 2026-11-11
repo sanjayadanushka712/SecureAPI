@@ -16,6 +16,7 @@ def client():
     with TestClient(app) as client:
         yield client
 
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -28,6 +29,7 @@ def test_create_task_rejects_invalid_data(client, payload):
     response = client.post("/tasks", json=payload)
 
     assert response.status_code == 422
+
 
 def test_root(client):
     response = client.get("/")
@@ -63,9 +65,7 @@ def test_create_task(client):
 
 
 def test_create_task_with_completed_true(client):
-    response = client.post(
-        "/tasks", json={"title": "Write tests", "completed": True}
-    )
+    response = client.post("/tasks", json={"title": "Write tests", "completed": True})
 
     assert response.status_code == 201
     assert response.json()["completed"] is True
@@ -175,8 +175,9 @@ def test_task_lifecycle(client):
 
     assert client.get("/tasks").json() == [created]
     assert client.patch(f"/tasks/{task_id}/complete").json()["completed"] is True
-    assert client.put(
-        f"/tasks/{task_id}", json={"title": "Updated"}
-    ).json()["title"] == "Updated"
+    assert (
+        client.put(f"/tasks/{task_id}", json={"title": "Updated"}).json()["title"]
+        == "Updated"
+    )
     assert client.delete(f"/tasks/{task_id}").status_code == 204
     assert client.get("/tasks").json() == []
