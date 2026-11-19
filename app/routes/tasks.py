@@ -1,6 +1,13 @@
 from fastapi import APIRouter, HTTPException, status
-
 from app.schemas.tasks import TaskCreate, TaskResponse
+from app.services.tasks import (
+    create_task,
+    get_all_tasks,
+    get_task_by_id,
+    complete_task,
+    update_task,
+    delete_task,
+)
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
@@ -9,19 +16,20 @@ tasks = []
 
 @router.get("/", response_model=list[TaskResponse])
 def get_tasks():
-    return tasks
+    return get_all_tasks(tasks)
 
 
 @router.get("/{task_id}", response_model=TaskResponse)
 def get_task(task_id: int):
-    for task in tasks:
-        if task["id"] == task_id:
-            return task
+    task = get_task_by_id(tasks, task_id)
 
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Task with ID {task_id} not found",
-    )
+    if task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task with ID {task_id} not found",
+        )
+
+    return task
 
 
 @router.post(
@@ -29,58 +37,42 @@ def get_task(task_id: int):
     response_model=TaskResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def create_task(task_data: TaskCreate):
-    new_id = max((task["id"] for task in tasks), default=0) + 1
-
-    new_task = {
-        "id": new_id,
-        **task_data.model_dump(),
-    }
-
-    tasks.append(new_task)
-    return new_task
+def create_task_route(task_data: TaskCreate):
+    return create_task(tasks, task_data)
 
 
-@router.patch(
-    "/{task_id}/complete",
-    response_model=TaskResponse,
-)
-def complete_task(task_id: int):
-    for task in tasks:
-        if task["id"] == task_id:
-            task["completed"] = True
-            return task
+@router.patch("/{task_id}/complete", response_model=TaskResponse)
+def complete_task_route(task_id: int):
+    task = complete_task(tasks, task_id)
 
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Task with ID {task_id} not found",
-    )
+    if task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task with ID {task_id} not found",
+        )
+
+    return task
 
 
 @router.put("/{task_id}", response_model=TaskResponse)
-def update_task(task_id: int, task_data: TaskCreate):
-    for task in tasks:
-        if task["id"] == task_id:
-            task.update(task_data.model_dump())
-            return task
+def update_task_route(task_id: int, task_data: TaskCreate):
+    task = update_task(tasks, task_id, task_data)
 
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Task with ID {task_id} not found",
-    )
+    if task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task with ID {task_id} not found",
+        )
+
+    return task
 
 
-@router.delete(
-    "/{task_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-def delete_task(task_id: int):
-    for index, task in enumerate(tasks):
-        if task["id"] == task_id:
-            tasks.pop(index)
-            return
+@router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_task_route(task_id: int):
+    deleted = delete_task(tasks, task_id)
 
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Task with ID {task_id} not found",
-    )
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task with ID {task_id} not found",
+        )
