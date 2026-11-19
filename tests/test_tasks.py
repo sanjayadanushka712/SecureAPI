@@ -1,7 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
-
-from app.main import app, tasks
+from app.main import app
+from app.routes.tasks import tasks
+from app.routes.profile import get_current_user
 
 
 @pytest.fixture(autouse=True)
@@ -36,6 +37,32 @@ def test_root(client):
 
     assert response.status_code == 200
     assert response.json() == {"message": "Welcome to SecureAPI"}
+
+
+def test_profile(client):
+    response = client.get("/profile")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "User profile",
+        "user": {
+            "id": 1,
+            "username": "admin",
+        },
+    }
+
+
+def test_profile_without_user(client):
+    def fake_user():
+        return None
+
+    app.dependency_overrides[get_current_user] = fake_user
+
+    try:
+        response = client.get("/profile")
+        assert response.status_code == 401
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_health_check(client):
