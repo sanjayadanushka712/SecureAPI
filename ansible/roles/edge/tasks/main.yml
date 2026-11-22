@@ -1,0 +1,16 @@
+---
+- name: Ensure certbot webroot directory exists
+  ansible.builtin.file:
+    path: "{{ edge_certbot_webroot }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure letsencrypt directory exists
+  ansible.builtin.file:
+    path: "{{ edge_letsencrypt_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"

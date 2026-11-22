@@ -1,0 +1,6 @@
+---
+- name: reload nginx
+  ansible.builtin.command:
+    cmd: docker compose -f compose.prod.yaml exec -T nginx nginx -s reload
+    chdir: "{{ app_dir }}"
+  changed_when: true

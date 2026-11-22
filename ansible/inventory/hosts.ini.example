@@ -1,0 +1,5 @@
+[secureapi]
+secureapi.example.com ansible_user=root
+
+[secureapi:vars]
+ansible_python_interpreter=/usr/bin/python3

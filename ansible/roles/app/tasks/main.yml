@@ -1,0 +1,112 @@
+---
+- name: Ensure application parent directory exists
+  ansible.builtin.file:
+    path: "{{ app_dir | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Clone or update SecureAPI repository
+  ansible.builtin.git:
+    repo: "{{ app_repo_url }}"
+    dest: "{{ app_dir }}"
+    version: "{{ app_repo_version }}"
+    update: true
+    accept_hostkey: true
+  register: app_repo
+  notify: run secureapi deployment
+
+- name: Ensure repository ownership
+  ansible.builtin.file:
+    path: "{{ app_dir }}"
+    owner: "{{ app_deploy_user }}"
+    group: "{{ app_deploy_group }}"
+    recurse: true
+  when: app_repo.changed
+
+- name: Create application secrets directory
+  ansible.builtin.file:
+    path: "{{ app_secrets_dir }}"
+    state: directory
+    owner: "{{ app_deploy_user }}"
+    group: "{{ app_deploy_group }}"
+    mode: "0700"
+
+- name: Check database password file
+  ansible.builtin.stat:
+    path: "{{ app_secrets_dir }}/{{ db_password_file }}"
+  register: app_db_password_file_stat
+
+- name: Create placeholder database password file
+  ansible.builtin.copy:
+    dest: "{{ app_secrets_dir }}/{{ db_password_file }}"
+    content: "{{ app_placeholder_db_password }}\n"
+    owner: "{{ app_deploy_user }}"
+    group: "{{ app_deploy_group }}"
+    mode: "0600"
+    force: false
+  when: not app_db_password_file_stat.stat.exists
+  no_log: true
+
+- name: Ensure Grafana admin password file exists
+  ansible.builtin.copy:
+    dest: "{{ app_secrets_dir }}/{{ grafana_password_file }}"
+    content: "{{ app_placeholder_grafana_password }}\n"
+    owner: "{{ app_deploy_user }}"
+    group: "{{ app_deploy_group }}"
+    mode: "0600"
+    force: false
+  no_log: true
+
+- name: Read database password from secrets directory
+  ansible.builtin.slurp:
+    src: "{{ app_secrets_dir }}/{{ db_password_file }}"
+  register: app_db_password_encoded
+  no_log: true
+
+- name: Expose database password to template
+  ansible.builtin.set_fact:
+    app_db_password: "{{ app_db_password_encoded.content | b64decode | trim }}"
+  no_log: true
+
+- name: Render production environment file
+  ansible.builtin.template:
+    src: "{{ app_env_template }}"
+    dest: "{{ app_env_path }}"
+    owner: "{{ app_deploy_user }}"
+    group: "{{ app_deploy_group }}"
+    mode: "0600"
+  register: app_env
+  no_log: true
+  notify: run secureapi deployment
+
+- name: Check deployment helper
+  ansible.builtin.stat:
+    path: "{{ app_dir }}/scripts/deploy.sh"
+  register: app_deploy_script
+
+- name: Verify deployment helper is available
+  ansible.builtin.assert:
+    that: app_deploy_script.stat.exists
+    fail_msg: "{{ app_dir }}/scripts/deploy.sh is required before deployment"
+    success_msg: "Deployment helper is available"
+  when: app_require_deploy_script | bool
+
+- name: Ensure deployment helper is executable
+  ansible.builtin.file:
+    path: "{{ app_dir }}/scripts/deploy.sh"
+    mode: "0755"
+  when: app_deploy_script.stat.exists
+
+- name: Configure database backup schedule
+  ansible.builtin.cron:
+    name: "SecureAPI database backup"
+    minute: "{{ app_backup_minute }}"
+    hour: "{{ app_backup_hour }}"
+    day: "{{ app_backup_day }}"
+    month: "{{ app_backup_month }}"
+    weekday: "{{ app_backup_weekday }}"
+    job: "cd {{ app_dir }} && {{ app_backup_command }}"
+    user: "{{ app_deploy_user }}"
+  when: app_backup_enabled | bool

@@ -1,0 +1,11 @@
+do_token                 = "REPLACE_WITH_DIGITALOCEAN_API_TOKEN"
+ssh_key_id               = null
+ssh_key_name             = "secureapi-deploy"
+region                   = "nyc3"
+size                     = "s-1vcpu-1gb"
+image                    = "ubuntu-24-04-x64"
+droplet_name             = "secureapi-prod"
+domain                   = "secureapi.example.com"
+manage_dns               = false
+enable_floating_ip       = false
+droplet_tags             = ["secureapi"]

@@ -13,7 +13,6 @@ from app.services.tasks import (
 )
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
-tasks = []
 
 
 @router.get("", response_model=list[TaskResponse])
@@ -22,8 +21,8 @@ def get_tasks(db: Session = Depends(get_db)):
 
 
 @router.get("/{task_id}", response_model=TaskResponse)
-def get_task(task_id: int):
-    task = get_task_by_id(tasks, task_id)
+def get_task(task_id: int, db: Session = Depends(get_db)):
+    task = get_task_by_id(db, task_id)
 
     if task is None:
         raise HTTPException(
@@ -43,8 +42,8 @@ def create_task_route(
 
 
 @router.patch("/{task_id}/complete", response_model=TaskResponse)
-def complete_task_route(task_id: int):
-    task = complete_task(tasks, task_id)
+def complete_task_route(task_id: int, db: Session = Depends(get_db)):
+    task = complete_task(db, task_id)
 
     if task is None:
         raise HTTPException(
@@ -56,8 +55,12 @@ def complete_task_route(task_id: int):
 
 
 @router.put("/{task_id}", response_model=TaskResponse)
-def update_task_route(task_id: int, task_data: TaskCreate):
-    task = update_task(tasks, task_id, task_data)
+def update_task_route(
+    task_id: int,
+    task_data: TaskCreate,
+    db: Session = Depends(get_db),
+):
+    task = update_task(db, task_id, task_data)
 
     if task is None:
         raise HTTPException(
@@ -69,9 +72,8 @@ def update_task_route(task_id: int, task_data: TaskCreate):
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_task_route(task_id: int):
-    deleted = delete_task(tasks, task_id)
-
+def delete_task_route(task_id: int, db: Session = Depends(get_db)):
+    deleted = delete_task(db, task_id)
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

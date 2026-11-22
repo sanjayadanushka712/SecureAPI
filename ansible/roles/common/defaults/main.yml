@@ -1,0 +1,40 @@
+---
+common_timezone: UTC
+common_ntp_enabled: true
+common_ufw_enabled: true
+common_allowed_ports:
+  - 22
+  - 80
+  - 443
+common_packages:
+  - ca-certificates
+  - cron
+  - curl
+  - git
+  - gnupg
+  - htop
+  - python3
+  - python3-pip
+  - rsync
+  - ufw
+  - unzip
+  - wget
+common_ssh_service: ssh
+common_ssh_hardening:
+  - directive: PasswordAuthentication
+    value: "no"
+  - directive: PubkeyAuthentication
+    value: "yes"
+  - directive: PermitRootLogin
+    value: "prohibit-password"
+  - directive: KbdInteractiveAuthentication
+    value: "no"
+common_ufw_default_policies:
+  - direction: incoming
+    policy: deny
+  - direction: outgoing
+    policy: allow
+app_deploy_user: deploy
+app_deploy_group: deploy
+ssh_disable_password_auth: false
+ssh_authorized_keys: []

@@ -1,0 +1,35 @@
+---
+app_repo_url: "https://github.com/your-org/SecureAPI.git"
+app_repo_version: main
+app_dir: /srv/secureapi
+app_deploy_user: deploy
+app_deploy_group: deploy
+app_env_template: env.j2
+app_env_path: "{{ app_dir }}/.env"
+app_secrets_dir: "{{ app_dir }}/secrets"
+db_password_file: db_password.txt
+grafana_password_file: grafana_admin_password.txt
+app_placeholder_db_password: CHANGE_ME
+app_placeholder_grafana_password: CHANGE_ME
+app_db_user: secureapi
+app_db_host: db
+app_db_port: 5432
+app_db_name: secureapi
+app_test_db_name: secureapi_test
+app_deploy_command: ./scripts/deploy.sh
+app_backup_command: ./scripts/backup_db.sh
+app_backup_enabled: true
+app_backup_minute: "0"
+app_backup_hour: "2"
+app_backup_day: "*"
+app_backup_month: "*"
+app_backup_weekday: "*"
+app_require_deploy_script: true
+app_domain: secureapi.example.com
+app_certbot_email: admin@example.com
+grafana_admin_user: admin
+web_concurrency: 4
+app_listen_port: 8000
+app_health_path: /health
+app_backup_dir: ./backups
+app_backup_retention_days: 7

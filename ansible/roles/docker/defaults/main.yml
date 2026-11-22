@@ -1,0 +1,8 @@
+---
+docker_apt_packages:
+  - docker.io
+  - docker-compose-plugin
+  - python3-pip
+docker_pip_packages: []
+docker_pip_break_system_packages: false
+app_deploy_user: deploy

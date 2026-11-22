@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 
+
 class TaskCreate(BaseModel):
     title: str = Field(
         min_length=3,

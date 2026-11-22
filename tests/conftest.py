@@ -1,13 +1,13 @@
 import os
-from fastapi.testclient import TestClient
-from app.db.database import get_db
-from app.main import app
+
 import pytest
-from sqlalchemy import create_engine
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-from app.db.database import Base
-from app.db import models
+from app.db.database import Base, get_db
+from app.db.models import Task
+from app.main import app
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
 
@@ -21,6 +21,23 @@ TestingSessionLocal = sessionmaker(
     autoflush=False,
     autocommit=False,
 )
+
+
+@pytest.fixture
+def db_session():
+    Base.metadata.create_all(bind=test_engine)
+
+    with test_engine.begin() as connection:
+        connection.execute(
+            text(f"TRUNCATE TABLE {Task.__tablename__} RESTART IDENTITY CASCADE")
+        )
+
+    session = TestingSessionLocal()
+
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 @pytest.fixture

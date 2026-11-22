@@ -1,0 +1,10 @@
+---
+- name: run secureapi deployment
+  ansible.builtin.command:
+    cmd: "{{ app_deploy_command }}"
+    chdir: "{{ app_dir }}"
+  become: true
+  become_user: "{{ app_deploy_user }}"
+  changed_when: true
+  when: app_deploy_script.stat.exists
+  notify: reload nginx

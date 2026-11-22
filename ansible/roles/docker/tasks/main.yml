@@ -1,0 +1,52 @@
+---
+- name: Install Docker Engine and compose plugin packages
+  ansible.builtin.apt:
+    name: "{{ docker_apt_packages }}"
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: Install Docker Python packages
+  ansible.builtin.pip:
+    name: "{{ docker_pip_packages }}"
+    state: present
+    break_system_packages: "{{ docker_pip_break_system_packages | bool }}"
+  when:
+    - ansible_os_family == "Debian"
+    - docker_pip_packages | length > 0
+
+- name: Add deploy user to docker group
+  ansible.builtin.user:
+    name: "{{ app_deploy_user }}"
+    groups:
+      - docker
+    append: true
+
+- name: Ensure Docker daemon configuration directory exists
+  ansible.builtin.file:
+    path: /etc/docker
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure Docker daemon log rotation
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+  notify: restart docker
+
+- name: Enable and start Docker
+  ansible.builtin.service:
+    name: docker
+    enabled: true
+    state: started

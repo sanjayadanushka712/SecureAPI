@@ -1,0 +1,186 @@
+name: secureapi
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-secureapi}
+      POSTGRES_DB: ${POSTGRES_DB:-secureapi}
+      REDIS_URL: redis://redis:6379/0
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
+    secrets:
+      - db_password
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - secureapi
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-secureapi}
+      POSTGRES_USER: ${POSTGRES_USER:-secureapi}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-secureapi} -d ${POSTGRES_DB:-secureapi}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - secureapi
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - secureapi
+
+  cert-init:
+    image: certbot/certbot:latest
+    restart: "no"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+      CERTBOT_EMAIL: ${CERTBOT_EMAIL:-admin@example.com}
+    ports:
+      - "80:80"
+    volumes:
+      - certs:/etc/letsencrypt
+      - ./scripts/init_certs.sh:/init_certs.sh:ro
+    entrypoint: ["/bin/sh", "/init_certs.sh"]
+    networks:
+      - secureapi
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+      NGINX_ENVSUBST_FILTER: "^DOMAIN$"
+    volumes:
+      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - certs:/etc/letsencrypt:ro
+      - acme_challenge:/var/www/certbot:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      cert-init:
+        condition: service_completed_successfully
+    networks:
+      - secureapi
+
+  certbot:
+    image: certbot/certbot:latest
+    profiles:
+      - certbot
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+      CERTBOT_EMAIL: ${CERTBOT_EMAIL:-admin@example.com}
+    volumes:
+      - certs:/etc/letsencrypt
+      - acme_challenge:/var/www/certbot
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while :; do
+          certbot renew --webroot -w /var/www/certbot --non-interactive
+          sleep 12h
+        done
+    networks:
+      - secureapi
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - secureapi
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    secrets:
+      - grafana_admin_password
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - secureapi
+
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:latest
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_USER: ${POSTGRES_USER:-secureapi}
+    secrets:
+      - db_password
+    command:
+      - --datasource.uri=db:5432/${POSTGRES_DB:-secureapi}?sslmode=disable
+      - --datasource.pass-file=/run/secrets/db_password
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - secureapi
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  grafana_admin_password:
+    file: ./secrets/grafana_admin_password.txt
+
+volumes:
+  db_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+  certs:
+  acme_challenge:
+
+networks:
+  secureapi:
+    driver: bridge

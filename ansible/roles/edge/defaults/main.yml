@@ -1,0 +1,3 @@
+---
+edge_certbot_webroot: /var/www/certbot
+edge_letsencrypt_dir: /etc/letsencrypt

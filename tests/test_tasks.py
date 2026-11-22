@@ -1,21 +1,8 @@
 import pytest
-from fastapi.testclient import TestClient
+
+from app.db.models import Task
 from app.main import app
-from app.routes.tasks import tasks
 from app.routes.profile import get_current_user
-
-
-@pytest.fixture(autouse=True)
-def reset_tasks():
-    tasks.clear()
-    yield
-    tasks.clear()
-
-
-@pytest.fixture
-def client():
-    with TestClient(app) as client:
-        yield client
 
 
 @pytest.mark.parametrize(
@@ -77,18 +64,6 @@ def test_list_tasks_is_empty_initially(client):
 
     assert response.status_code == 200
     assert response.json() == []
-
-
-def test_create_task(client):
-    response = client.post("/tasks", json={"title": "Buy groceries"})
-
-    assert response.status_code == 201
-    assert response.json() == {
-        "id": 1,
-        "title": "Buy groceries",
-        "completed": False,
-    }
-    assert tasks == [{"id": 1, "title": "Buy groceries", "completed": False}]
 
 
 def test_create_task_with_completed_true(client):
@@ -208,3 +183,27 @@ def test_task_lifecycle(client):
     )
     assert client.delete(f"/tasks/{task_id}").status_code == 204
     assert client.get("/tasks").json() == []
+
+
+def test_create_task_persists_to_db(client, db_session):
+    response = client.post(
+        "/tasks",
+        json={
+            "title": "Learn PostgreSQL",
+            "completed": False,
+        },
+    )
+
+    assert response.status_code == 201
+
+    data = response.json()
+
+    assert data["id"] == 1
+    assert data["title"] == "Learn PostgreSQL"
+    assert data["completed"] is False
+
+    saved_task = db_session.get(Task, 1)
+
+    assert saved_task is not None
+    assert saved_task.title == "Learn PostgreSQL"
+    assert saved_task.completed is False

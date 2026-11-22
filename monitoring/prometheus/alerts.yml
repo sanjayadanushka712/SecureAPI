@@ -1,0 +1,33 @@
+groups:
+  - name: secureapi
+    rules:
+      - alert: APIDown
+        expr: up{job="api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: SecureAPI API is down
+          description: Prometheus has not been able to scrape api:8000/metrics for 1 minute.
+
+      - alert: HighServerErrorRate
+        expr: |
+          sum(rate(http_requests_by_route_total{status=~"5.."}[5m]))
+          / clamp_min(sum(rate(http_requests_by_route_total[5m])), 0.001) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: High 5xx response rate
+          description: More than 5% of requests returned 5xx over the last 5 minutes.
+
+      - alert: HighRequestLatency
+        expr: |
+          sum(rate(http_request_duration_seconds_sum[5m]))
+          / clamp_min(sum(rate(http_request_duration_seconds_count[5m])), 0.001) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High average request latency
+          description: Average request duration has exceeded one second for 5 minutes.

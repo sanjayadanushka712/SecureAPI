@@ -1,0 +1,139 @@
+---
+- name: Update apt package cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_os_family == "Debian"
+
+- name: Install baseline packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: Create deploy group
+  ansible.builtin.group:
+    name: "{{ app_deploy_group }}"
+    state: present
+
+- name: Create deploy user
+  ansible.builtin.user:
+    name: "{{ app_deploy_user }}"
+    group: "{{ app_deploy_group }}"
+    create_home: true
+    shell: /bin/bash
+    state: present
+
+- name: Ensure deploy SSH directory exists
+  ansible.builtin.file:
+    path: "/home/{{ app_deploy_user }}/.ssh"
+    state: directory
+    owner: "{{ app_deploy_user }}"
+    group: "{{ app_deploy_group }}"
+    mode: "0700"
+
+- name: Install deploy SSH authorized keys
+  ansible.builtin.lineinfile:
+    path: "/home/{{ app_deploy_user }}/.ssh/authorized_keys"
+    line: "{{ item }}"
+    create: true
+    owner: "{{ app_deploy_user }}"
+    group: "{{ app_deploy_group }}"
+    mode: "0600"
+  loop: "{{ ssh_authorized_keys }}"
+  when: ssh_authorized_keys | length > 0
+
+- name: Validate SSH hardening prerequisites
+  ansible.builtin.assert:
+    that:
+      - not ssh_disable_password_auth | bool or ssh_authorized_keys | length > 0
+    fail_msg: "Set ssh_authorized_keys before disabling SSH password authentication"
+    success_msg: "SSH hardening prerequisites are satisfied"
+
+- name: Ensure SSH drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Disable SSH password authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config.d/99-secureapi.conf
+    line: "{{ item.directive }} {{ item.value }}"
+    create: true
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ common_ssh_hardening }}"
+  when: ssh_disable_password_auth | bool
+  notify: restart ssh
+
+- name: Read current timezone
+  ansible.builtin.command:
+    argv: [timedatectl, show, -p, Timezone, --value]
+  register: common_timezone_current
+  changed_when: false
+  check_mode: false
+  when: ansible_os_family == "Debian"
+
+- name: Set system timezone
+  ansible.builtin.command:
+    argv: [timedatectl, set-timezone, "{{ common_timezone }}"]
+  when:
+    - ansible_os_family == "Debian"
+    - common_timezone_current.stdout | trim != common_timezone
+  changed_when: true
+
+- name: Read current NTP status
+  ansible.builtin.command:
+    argv: [timedatectl, show, -p, NTP, --value]
+  register: common_ntp_current
+  changed_when: false
+  check_mode: false
+  when: ansible_os_family == "Debian"
+
+- name: Enable network time synchronization
+  ansible.builtin.command:
+    argv: [timedatectl, set-ntp, "true"]
+  when:
+    - ansible_os_family == "Debian"
+    - common_ntp_enabled | bool
+    - common_ntp_current.stdout | trim | lower not in ["yes", "true", "1"]
+  changed_when: true
+
+- name: Read UFW status
+  ansible.builtin.command:
+    argv: [ufw, status, verbose]
+  register: common_ufw_status
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: common_ufw_enabled | bool
+
+- name: Configure UFW default policies
+  ansible.builtin.command:
+    argv: [ufw, default, "{{ item.policy }}", "{{ item.direction }}"]
+  loop: "{{ common_ufw_default_policies }}"
+  when:
+    - common_ufw_enabled | bool
+    - "item.policy ~ ' (' ~ item.direction ~ ')' not in common_ufw_status.stdout"
+  changed_when: true
+
+- name: Allow UFW inbound ports
+  ansible.builtin.command:
+    argv: [ufw, allow, "{{ item }}/tcp"]
+  loop: "{{ common_allowed_ports }}"
+  when:
+    - common_ufw_enabled | bool
+    - "item ~ '/tcp' not in common_ufw_status.stdout"
+  changed_when: true
+
+- name: Enable UFW
+  ansible.builtin.command:
+    argv: [ufw, --force, enable]
+  when:
+    - common_ufw_enabled | bool
+    - "'Status: active' not in common_ufw_status.stdout"
+  changed_when: true
