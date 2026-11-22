@@ -15,5 +15,6 @@
     "uvloop",
     "venv",
     "watchfiles"
-  ]
+  ],
+  "python.terminal.useEnvFile": true
 }

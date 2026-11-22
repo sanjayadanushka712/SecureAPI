@@ -1,22 +1,24 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.db.database import get_db
 from app.schemas.tasks import TaskCreate, TaskResponse
 from app.services.tasks import (
+    complete_task,
     create_task,
+    delete_task,
     get_all_tasks,
     get_task_by_id,
-    complete_task,
     update_task,
-    delete_task,
 )
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
-
 tasks = []
 
 
-@router.get("/", response_model=list[TaskResponse])
-def get_tasks():
-    return get_all_tasks(tasks)
+@router.get("", response_model=list[TaskResponse])
+def get_tasks(db: Session = Depends(get_db)):
+    return get_all_tasks(db)
 
 
 @router.get("/{task_id}", response_model=TaskResponse)
@@ -32,13 +34,12 @@ def get_task(task_id: int):
     return task
 
 
-@router.post(
-    "/",
-    response_model=TaskResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-def create_task_route(task_data: TaskCreate):
-    return create_task(tasks, task_data)
+@router.post("", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
+def create_task_route(
+    task_data: TaskCreate,
+    db: Session = Depends(get_db),
+):
+    return create_task(db, task_data)
 
 
 @router.patch("/{task_id}/complete", response_model=TaskResponse)

@@ -1,18 +1,24 @@
-def create_task(tasks, task_data):
-    new_id = max((task["id"] for task in tasks), default=0) + 1
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-    new_task = {
-        "id": new_id,
-        **task_data.model_dump(),
-    }
+from app.db.models import Task
 
-    tasks.append(new_task)
+
+
+def create_task(db: Session, task_data):
+    new_task = Task(**task_data.model_dump())
+
+    db.add(new_task)
+    db.commit()
+    db.refresh(new_task)
 
     return new_task
 
+def get_all_tasks(db: Session):
+    statement = select(Task)
+    result = db.execute(statement)
 
-def get_all_tasks(tasks):
-    return tasks
+    return result.scalars().all()
 
 
 def get_task_by_id(tasks, task_id):
